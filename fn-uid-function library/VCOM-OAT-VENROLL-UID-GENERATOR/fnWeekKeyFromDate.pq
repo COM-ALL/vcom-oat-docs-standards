@@ -1,3 +1,4 @@
+// fnWeekKeyFromDate
 (inputDate as nullable date) as nullable record =>
 let
     // Step 1: Short-circuit nulls

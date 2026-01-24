@@ -1,3 +1,4 @@
+// fnCourseDurationWeeks_v1
 (
     startdate as nullable date,
     enddate as nullable date

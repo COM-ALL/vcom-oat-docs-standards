@@ -1,3 +1,4 @@
+// fnNormalizeStudentId
 (studentId as nullable text) as nullable text =>
 let
     // Step 1: Apply generic text normalization

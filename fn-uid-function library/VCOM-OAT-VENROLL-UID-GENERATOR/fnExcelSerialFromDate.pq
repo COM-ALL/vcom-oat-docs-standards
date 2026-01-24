@@ -1,3 +1,4 @@
+// fnExcelSerialFromDate
 (inputDate as nullable date) as nullable number =>
 let
     // Step 1: Short-circuit nulls
