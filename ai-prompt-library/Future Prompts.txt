@@ -1,0 +1,4 @@
+A visual architecture diagram of your setup
+A function dependency map
+A Dataflow Gen2 blueprint
+A Lakehouse schema document
