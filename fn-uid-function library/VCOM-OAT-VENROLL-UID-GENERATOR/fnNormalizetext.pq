@@ -1,4 +1,4 @@
-// fnNormalizetext
+// fnNormalizeText
 (textValue as nullable text) as nullable text =>
 let
     // Step 1: Short-circuit nulls

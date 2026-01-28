@@ -1,4 +1,4 @@
-// fnBuildCRSRosterUID_v1.pq
+// fnBuildCRSRosterUID_v1
 (
     stu_uniqueid as nullable text,
     mdco_courseuid as nullable text
