@@ -88,10 +88,38 @@ let
             }
         ),
 
-    // 5) Build match flags for Elentra-based rows
-    #"Added MatchCategory (Elentra base)" =
-        Table.AddColumn(
+    // 5) Enhanced match analysis with litmus tests for edge cases
+    
+    // 5a) Longitudinal course detection (enrollment > 20 indicates longitudinal vs rotation)
+    #"Course enrollment counts" =
+        Table.Group(
             #"Expanded PIQ",
+            {"MDCO_COURSE_UID", "ELE_STARTDATE"},
+            {{"EnrollmentCount", each Table.RowCount(_), Int64.Type}}
+        ),
+    
+    #"Join enrollment counts" =
+        Table.NestedJoin(
+            #"Expanded PIQ",
+            {"MDCO_COURSE_UID", "ELE_STARTDATE"},
+            #"Course enrollment counts",
+            {"MDCO_COURSE_UID", "ELE_STARTDATE"},
+            "EnrollCounts",
+            JoinKind.LeftOuter
+        ),
+    
+    #"Expanded enrollment counts" =
+        Table.ExpandTableColumn(
+            #"Join enrollment counts",
+            "EnrollCounts",
+            {"EnrollmentCount"},
+            {"COURSE_ENROLLMENT_COUNT"}
+        ),
+
+    // 5b) Add basic match category before enhanced analysis
+    #"Added basic match category" =
+        Table.AddColumn(
+            #"Expanded enrollment counts",
             "MATCH_CATEGORY",
             each if [PIQ_SYS] <> null
                  then "MATCHED"
@@ -99,7 +127,53 @@ let
             type text
         ),
 
-    // 6) Find PIQ-only rows (PIQ rotation UID not present in Elentra)
+    // 5c) Three-point matching analysis (student + course + start date, allowing location variance)
+    #"Enhanced match category" =
+        Table.AddColumn(
+            #"Added basic match category",
+            "ENHANCED_MATCH_CATEGORY",
+            each 
+                let
+                    IsLongitudinal = [COURSE_ENROLLMENT_COUNT] > 20,
+                    HasPIQMatch = [PIQ_SYS] <> null,
+                    StartDateMatch = [ELE_STARTDATE] = [PIQ_STARTDATE],
+                    EndDateVariance = if [ELE_ENDDATE] <> null and [PIQ_ENDDATE] <> null 
+                                    then Duration.Days([PIQ_ENDDATE] - [ELE_ENDDATE])
+                                    else null,
+                    IsWeekendVariance = (EndDateVariance = 2 or EndDateVariance = -2),
+                    LocationVariance = [MDCO_CAMPUS_UID] <> [PIQ_MDCO_CAMPUS]
+                in
+                    if IsLongitudinal then "LONGITUDINAL_COURSE_PATTERN"
+                    else if HasPIQMatch and StartDateMatch and not LocationVariance then "MATCHED"
+                    else if HasPIQMatch and StartDateMatch and LocationVariance then "MATCHED_LOCATION_VARIANCE"
+                    else if HasPIQMatch and StartDateMatch and IsWeekendVariance then "MATCHED_DATE_VARIANCE"
+                    else if HasPIQMatch and StartDateMatch then "THREE_POINT_MATCH_APPROVED"
+                    else [MATCH_CATEGORY],
+            type text
+        ),
+
+    // 5d) Add detailed variance analysis for reporting
+    #"Added variance details" =
+        Table.AddColumn(
+            #"Enhanced match category",
+            "VARIANCE_DETAILS",
+            each 
+                let
+                    StartMatch = [ELE_STARTDATE] = [PIQ_STARTDATE],
+                    EndVariance = if [ELE_ENDDATE] <> null and [PIQ_ENDDATE] <> null 
+                                then Duration.Days([PIQ_ENDDATE] - [ELE_ENDDATE])
+                                else null,
+                    LocationMatch = [MDCO_CAMPUS_UID] = [PIQ_MDCO_CAMPUS]
+                in
+                    if not StartMatch then "START_DATE_MISMATCH"
+                    else if EndVariance <> null and EndVariance <> 0 then "END_DATE_VARIANCE_" & Text.From(EndVariance) & "_DAYS"
+                    else if not LocationMatch then "LOCATION_VARIANCE"
+                    else if [COURSE_ENROLLMENT_COUNT] > 20 then "HIGH_ENROLLMENT_LONGITUDINAL"
+                    else "NO_VARIANCE",
+            type text
+        ),
+
+    // 6) Build match flags for Elentra-based rows (updated to use enhanced categories)
     ElentraRotationUIDs =
         List.Distinct(
             Table.Column(ElentraKeysFixed, "MDCO_ENROLL_LRN_ROTATION_UID")
@@ -120,17 +194,24 @@ let
             WithFlag =
                 Table.AddColumn(
                     #"Filtered PIQ-only",
-                    "MATCH_CATEGORY",
+                    "ENHANCED_MATCH_CATEGORY",
                     each "ONLY_IN_PIQ",
+                    type text
+                ),
+            WithVariance =
+                Table.AddColumn(
+                    WithFlag,
+                    "VARIANCE_DETAILS",
+                    each "PIQ_EXCLUSIVE",
                     type text
                 )
         in
-            WithFlag,
+            WithVariance,
 
     // 8) Select common output columns for Elentra-based rows
     #"Elentra subset" =
         Table.SelectColumns(
-            #"Added MatchCategory (Elentra base)",
+            #"Added variance details",
             {
                 "MDCO_ENROLL_LRN_ROTATION_UID",
                 "MDCO_ENROLL_COURSE_UID",
@@ -155,7 +236,9 @@ let
                 "PIQ_DATE_OF_RECORD",
                 "PIQ_RECORD_ACTIVE",
                 "PIQ_SYS",
-                "MATCH_CATEGORY"
+                "ENHANCED_MATCH_CATEGORY",
+                "VARIANCE_DETAILS",
+                "COURSE_ENROLLMENT_COUNT"
             },
             MissingField.Ignore
         ),
@@ -252,7 +335,8 @@ let
                     "PIQ_MDCO_CAMPUS",
                     "PIQ_STARTDATE",
                     "PIQ_ENDDATE",
-                    "MATCH_CATEGORY"
+                    "ENHANCED_MATCH_CATEGORY",
+                    "VARIANCE_DETAILS"
                 },
                 MissingField.Ignore
             ),
@@ -265,7 +349,23 @@ let
                 #"PIQ subset"
             }
         ),
-  #"Changed column type" = Table.TransformColumnTypes(MDCO_ENROLL_ROTATIONS_UTILITY, {{"SCHEDULE_BLOCK", type text}})
+
+    // 11) Add analysis priority for dashboard filtering
+    #"Added analysis priority" =
+        Table.AddColumn(
+            MDCO_ENROLL_ROTATIONS_UTILITY,
+            "ANALYSIS_PRIORITY",
+            each 
+                if [ENHANCED_MATCH_CATEGORY] = "MATCHED" then "LOW"
+                else if [ENHANCED_MATCH_CATEGORY] = "MATCHED_LOCATION_VARIANCE" then "LOW" 
+                else if [ENHANCED_MATCH_CATEGORY] = "MATCHED_DATE_VARIANCE" then "LOW"
+                else if [ENHANCED_MATCH_CATEGORY] = "THREE_POINT_MATCH_APPROVED" then "LOW"
+                else if [ENHANCED_MATCH_CATEGORY] = "LONGITUDINAL_COURSE_PATTERN" then "MEDIUM"
+                else "HIGH",
+            type text
+        ),
+
+    #"Changed column type" = Table.TransformColumnTypes(#"Added analysis priority", {{"SCHEDULE_BLOCK", type text}})
 
 in
     #"Changed column type"

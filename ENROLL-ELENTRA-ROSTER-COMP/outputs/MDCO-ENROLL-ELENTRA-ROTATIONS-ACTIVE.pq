@@ -36,13 +36,13 @@ let
             each [Course Code] <> "N/A"
         ),
 
-    // 3) Ensure date types for custom start/end
+    // 3) Ensure date types for rotation dates only
     #"Changed type dates" =
         Table.TransformColumnTypes(
             #"Filtered course code",
             {
                 {"(Custom) Start Date", type date},
-                {"(Custom) End Date",   type date}
+                {"(Custom) End Date", type date}
             }
         ),
 
@@ -108,29 +108,34 @@ let
             type text
         ),
 
-    // 7) Rename business columns to MDCO-friendly names
+    // 7) Rename business columns to MDCO-friendly names (using actual CSV column names)
     #"Renamed business columns" =
         Table.RenameColumns(
             #"Added SYS",
             {
-                {"(Custom) Start Date",   "ELE_STARTDATE"},
-                {"(Custom) End Date",     "ELE_ENDDATE"},
-                {"Has Custom Date",       "HAS_CUSTOM_DATES"},
-                {"STATUS_2",              "ELE_ENROLL_STATUS"},   // already set above, harmless rename if present
-                {"Site(s)",               "SITE_CODE"},
-                {"Schedule Blocks (No.)", "SCHEDULE_BLOCK"},
+                {"(Custom) Start Date",   "ELE_STARTDATE"},     // Rotation start date
+                {"(Custom) End Date",     "ELE_ENDDATE"},       // Rotation end date
                 {"Course Code",           "ELENTRA_MDCODE"},
-                {"Number/Email",          "STU_EMAIL"}
+                {"Number/Email",          "STU_EMAIL"},          // Fixed: actual column name
+                {"First Name",            "FIRST_NAME"},
+                {"Last Name",             "LAST_NAME"},
+                {"Rotation Code",         "ROTATION_CODE"},
+                {"Schedule Blocks (No.)", "SCHEDULE_BLOCK"},
+                {"Block Length (Weeks)",  "BLOCK_LENGTH_WEEKS"},
+                {"Site(s)",               "SITE_CODE"},
+                {"Has Custom Date",       "HAS_CUSTOM_DATE"},
+                {"Status",                "STATUS"}
             },
             MissingField.Ignore
         ),
 
-    // 8) Retrieve MDCO_USR_UID from Progress IQ student profile with SSO email source
+    // 8) Retrieve MDCO_USR_UID from LPROFILE v1 (Progress IQ student profile with SSO email)
+    // Exclude AIM students - they will be processed separately due to unique scheduling patterns
     #"Join student_profile" =
         Table.NestedJoin(
             #"Renamed business columns",
             {"STU_EMAIL"},
-            dim_Student_Profile_Wide,
+            #"src_VCOM-OAT-DATA-LPROFILE-v1",
             {"student_email_sso"},
             "StudentProfile",
             JoinKind.LeftOuter
@@ -140,17 +145,18 @@ let
         Table.ExpandTableColumn(
             #"Join student_profile",
             "StudentProfile",
-            {"student_id"},
-            {"MDCO_USR_UID"}
+            {"student_id", "pipeline"},
+            {"MDCO_USR_UID", "STUDENT_PIPELINE"}
         ),
 
-    #"Filtered non-null student" =
-        Table.SelectRows(#"Expanded student_profile", each [MDCO_USR_UID] <> null),
+    // Filter out AIM students from main enrollment matching process
+    #"Filtered non-AIM students" =
+        Table.SelectRows(#"Expanded student_profile", each [MDCO_USR_UID] <> null and ([STUDENT_PIPELINE] <> "AIM" or [STUDENT_PIPELINE] = null)),
 
     // 9) Map ELENTRA_MDCODE -> MDCO_COURSE_UID using Elentra course UID map
     #"Join course map" =
         Table.NestedJoin(
-            #"Filtered non-null student",
+            #"Filtered non-AIM students",
             {"ELENTRA_MDCODE"},
             #"src_VCOM-OAT-DATA-ELENTRA-CRSUID_map",
             {"ELENTRA-MDCODE"},
@@ -218,7 +224,7 @@ let
         type text
     ),
 
-    // 14) Final utility-level selection
+    // 14) Final utility-level selection (using actual available columns)
     #"Selected columns" =
         Table.SelectColumns(
             #"Added MDCO_ENROLL_LRN_ROTATION_UID",
@@ -229,14 +235,20 @@ let
                 "MDCO_COURSE_UID",
                 "MDCO_CAMPUS_UID",
                 "ELENTRA_MDCODE",
-                "SITE_CODE",
-                "SCHEDULE_BLOCK",
                 "ELE_STARTDATE",
                 "ELE_ENDDATE",
                 "ELE_ENROLL_STATUS",
                 "DATE_OF_RECORD",
                 "RECORD_ACTIVE",
-                "SYS"
+                "SYS",
+                "STU_EMAIL",
+                "FIRST_NAME",
+                "LAST_NAME",
+                "ROTATION_CODE",
+                "SCHEDULE_BLOCK",
+                "BLOCK_LENGTH_WEEKS",
+                "SITE_CODE",
+                "HAS_CUSTOM_DATE"
             }
         )
 in
