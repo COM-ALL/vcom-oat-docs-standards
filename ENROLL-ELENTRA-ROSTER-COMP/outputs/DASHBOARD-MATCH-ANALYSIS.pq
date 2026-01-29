@@ -1,7 +1,14 @@
 // DASHBOARD-MATCH-ANALYSIS - Non-AIM match analysis counts
 let
-    // 1) Load deduplicated utility table (already handles match analysis)
-    UtilityRaw = #"MDCO-ENROLL-ROTATIONS-UTILITY",
+    // 1) Load utility table from published datalake (already processed and optimized)
+    UtilityRaw = 
+        let
+            Source = Lakehouse.Contents(null),
+            Navigation = Source{[workspaceId = "c9e4d5a1-d250-42a1-a864-5acd524511e1"]}[Data],
+            #"Navigation 1" = Navigation{[lakehouseId = "fa80ccb4-153e-4730-80c1-9fab4f3dbd4d"]}[Data],
+            #"Navigation 2" = #"Navigation 1"{[Id = "MDCO-ENROLL-ROTATIONS-UTILITY", ItemKind = "Table"]}[Data]
+        in
+            #"Navigation 2",
     
     // 2) Deduplicate utility table on ROTATION_UID
     UtilityDedup = Table.Distinct(UtilityRaw, {"MDCO_ENROLL_LRN_ROTATION_UID"}),

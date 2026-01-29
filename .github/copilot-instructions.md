@@ -77,6 +77,13 @@ Use existing prompts from [ai-prompt-library/](ai-prompt-library/) for consisten
 - For new code: Use `_` (underscores) in column names, not `-` (hyphens)
 - Include query title as comment on the first line (e.g., `// stg_StudentTags_Long`) for easier pasting and naming
 
+### Data Layer Architecture & Reuse Principle
+- **Established Dataset Precedence**: Once a dataset is published to the datalake (e.g., LEARNER-ROTATION-DATASET), all downstream queries and analytics MUST reference the published tables via `Lakehouse.Contents()` calls instead of reprocessing source data
+- **Two-Tier Pattern**: Separate heavy ETL processing (SharePoint access, complex joins, UID generation) from lightweight analytics/dashboard queries
+- **Performance Optimization**: Dashboard and reporting queries should leverage pre-processed, optimized datalake tables rather than duplicating expensive transformations
+- **Consistency Guarantee**: Using published datasets ensures all downstream reports use identical data transformations and business rules
+- **Exception Protocol**: Only bypass established datasets when explicitly specified for testing or validation purposes
+
 ### Cross-Platform Considerations
 - Avoid prohibited characters: `/ \ : * ? " < > | # % & { } +`
 - Design for machine readability (sortable, parseable)

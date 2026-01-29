@@ -1,8 +1,23 @@
 // DASHBOARD-SOURCE-COUNTS - System management source counts with deduplication
 let
-    // 1) ELENTRA COUNTS - Load and deduplicate source tables
-    ElentraAll_Raw = #"MDCO-ENROLL-ELENTRA-ROTATIONS-ACTIVE",
-    ElentraAIM_Raw = #"MDCO-ENROLL-ELENTRA-ROTATIONS-AIM",
+    // 1) ELENTRA COUNTS - Load from published datalake tables (already processed)
+    ElentraAll_Raw = 
+        let
+            Source = Lakehouse.Contents(null),
+            Navigation = Source{[workspaceId = "c9e4d5a1-d250-42a1-a864-5acd524511e1"]}[Data],
+            #"Navigation 1" = Navigation{[lakehouseId = "fa80ccb4-153e-4730-80c1-9fab4f3dbd4d"]}[Data],
+            #"Navigation 2" = #"Navigation 1"{[Id = "MDCO-ENROLL-ELENTRA-ROTATIONS-ACTIVE", ItemKind = "Table"]}[Data]
+        in
+            #"Navigation 2",
+    
+    ElentraAIM_Raw = 
+        let
+            Source = Lakehouse.Contents(null),
+            Navigation = Source{[workspaceId = "c9e4d5a1-d250-42a1-a864-5acd524511e1"]}[Data],
+            #"Navigation 1" = Navigation{[lakehouseId = "fa80ccb4-153e-4730-80c1-9fab4f3dbd4d"]}[Data],
+            #"Navigation 2" = #"Navigation 1"{[Id = "MDCO-ENROLL-ELENTRA-ROTATIONS-AIM", ItemKind = "Table"]}[Data]
+        in
+            #"Navigation 2",
     
     // Deduplicate Elentra ALL (ACTIVE + AIM combined for total count)
     ElentraCombined = Table.Combine({ElentraAll_Raw, ElentraAIM_Raw}),
@@ -14,9 +29,24 @@ let
     // Deduplicate Elentra Non-AIM (ACTIVE table already excludes AIM)
     ElentraNonAIM_Dedup = Table.Distinct(ElentraAll_Raw, {"MDCO_ENROLL_LRN_ROTATION_UID"}),
     
-    // 2) PIQ COUNTS - Load and deduplicate source tables
-    PIQAll_Raw = #"MDCO-ENROLL-PIQ-ROTATION-SCHEDULED",
-    PIQAIM_Raw = #"MDCO-ENROLL-PIQ-ROTATIONS-AIM",
+    // 2) PIQ COUNTS - Load from published datalake tables (already processed)
+    PIQAll_Raw = 
+        let
+            Source = Lakehouse.Contents(null),
+            Navigation = Source{[workspaceId = "c9e4d5a1-d250-42a1-a864-5acd524511e1"]}[Data],
+            #"Navigation 1" = Navigation{[lakehouseId = "fa80ccb4-153e-4730-80c1-9fab4f3dbd4d"]}[Data],
+            #"Navigation 2" = #"Navigation 1"{[Id = "MDCO-ENROLL-PIQ-ROTATION-SCHEDULED", ItemKind = "Table"]}[Data]
+        in
+            #"Navigation 2",
+    
+    PIQAIM_Raw = 
+        let
+            Source = Lakehouse.Contents(null),
+            Navigation = Source{[workspaceId = "c9e4d5a1-d250-42a1-a864-5acd524511e1"]}[Data],
+            #"Navigation 1" = Navigation{[lakehouseId = "fa80ccb4-153e-4730-80c1-9fab4f3dbd4d"]}[Data],
+            #"Navigation 2" = #"Navigation 1"{[Id = "MDCO-ENROLL-PIQ-ROTATIONS-AIM", ItemKind = "Table"]}[Data]
+        in
+            #"Navigation 2",
     
     // Deduplicate PIQ ALL (SCHEDULED + AIM combined for total count)
     // Note: PIQ-AIM table uses MDCO_USR_UID as key, SCHEDULED uses ROTATION_UID
