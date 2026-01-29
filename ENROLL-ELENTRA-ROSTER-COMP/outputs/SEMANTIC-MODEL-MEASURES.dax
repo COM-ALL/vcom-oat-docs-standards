@@ -1,0 +1,193 @@
+// SEMANTIC-MODEL-MEASURES - Standard DAX measures for LEARNER-ROTATION semantic model
+// Copy these into Power BI/Fabric semantic model for consistent calculations
+
+// ========================================================================================
+// SOURCE COUNT MEASURES
+// ========================================================================================
+
+Total Elentra Rotations = 
+CALCULATE(
+    SUM('DASHBOARD-SOURCE-COUNTS'[COUNT_ROTATION_BOOKINGS]),
+    'DASHBOARD-SOURCE-COUNTS'[SOURCE_SYSTEM] = "ELENTRA",
+    'DASHBOARD-SOURCE-COUNTS'[POPULATION] = "ALL"
+)
+
+Total PIQ Rotations = 
+CALCULATE(
+    SUM('DASHBOARD-SOURCE-COUNTS'[COUNT_ROTATION_BOOKINGS]),
+    'DASHBOARD-SOURCE-COUNTS'[SOURCE_SYSTEM] = "PIQ",
+    'DASHBOARD-SOURCE-COUNTS'[POPULATION] = "ALL"
+)
+
+Non-AIM Elentra Count = 
+CALCULATE(
+    SUM('DASHBOARD-SOURCE-COUNTS'[COUNT_ROTATION_BOOKINGS]),
+    'DASHBOARD-SOURCE-COUNTS'[SOURCE_SYSTEM] = "ELENTRA",
+    'DASHBOARD-SOURCE-COUNTS'[POPULATION] = "NON-AIM"
+)
+
+Non-AIM PIQ Count = 
+CALCULATE(
+    SUM('DASHBOARD-SOURCE-COUNTS'[COUNT_ROTATION_BOOKINGS]),
+    'DASHBOARD-SOURCE-COUNTS'[SOURCE_SYSTEM] = "PIQ",
+    'DASHBOARD-SOURCE-COUNTS'[POPULATION] = "NON-AIM"
+)
+
+AIM Elentra Count = 
+CALCULATE(
+    SUM('DASHBOARD-SOURCE-COUNTS'[COUNT_ROTATION_BOOKINGS]),
+    'DASHBOARD-SOURCE-COUNTS'[SOURCE_SYSTEM] = "ELENTRA",
+    'DASHBOARD-SOURCE-COUNTS'[POPULATION] = "AIM"
+)
+
+AIM PIQ Count = 
+CALCULATE(
+    SUM('DASHBOARD-SOURCE-COUNTS'[COUNT_ROTATION_BOOKINGS]),
+    'DASHBOARD-SOURCE-COUNTS'[SOURCE_SYSTEM] = "PIQ",
+    'DASHBOARD-SOURCE-COUNTS'[POPULATION] = "AIM"
+)
+
+// ========================================================================================
+// MATCH ANALYSIS MEASURES  
+// ========================================================================================
+
+Matched Rotations = 
+CALCULATE(
+    SUM('DASHBOARD-MATCH-ANALYSIS'[COUNT_NON_AIM_ROTATIONS]),
+    'DASHBOARD-MATCH-ANALYSIS'[MATCH_TYPE] = "MATCHED_ROTATION_BOOKINGS"
+)
+
+Elentra Unmatched = 
+CALCULATE(
+    SUM('DASHBOARD-MATCH-ANALYSIS'[COUNT_NON_AIM_ROTATIONS]),
+    'DASHBOARD-MATCH-ANALYSIS'[MATCH_TYPE] = "ELENTRA_NO_MATCH"
+)
+
+PIQ Unmatched = 
+CALCULATE(
+    SUM('DASHBOARD-MATCH-ANALYSIS'[COUNT_NON_AIM_ROTATIONS]),
+    'DASHBOARD-MATCH-ANALYSIS'[MATCH_TYPE] = "PIQ_NO_MATCH"
+)
+
+Longitudinal Pattern Count = 
+CALCULATE(
+    SUM('DASHBOARD-MATCH-ANALYSIS'[COUNT_NON_AIM_ROTATIONS]),
+    'DASHBOARD-MATCH-ANALYSIS'[MATCH_TYPE] = "LONGITUDINAL_PATTERN"
+)
+
+Match Rate % = 
+VAR TotalComparable = [Non-AIM Elentra Count] + [Non-AIM PIQ Count] - [Matched Rotations]
+RETURN
+IF(
+    TotalComparable = 0,
+    0,
+    DIVIDE([Matched Rotations], TotalComparable, 0)
+)
+
+Unmatched Rate % = 
+VAR TotalUnmatched = [Elentra Unmatched] + [PIQ Unmatched]  
+VAR TotalComparable = [Non-AIM Elentra Count] + [Non-AIM PIQ Count] - [Matched Rotations]
+RETURN
+IF(
+    TotalComparable = 0,
+    0,
+    DIVIDE(TotalUnmatched, TotalComparable, 0)
+)
+
+// ========================================================================================
+// DATA QUALITY MEASURES
+// ========================================================================================
+
+Total Original Records = 
+SUMX(
+    'DASHBOARD-DEDUPLICATION-LOG',
+    'DASHBOARD-DEDUPLICATION-LOG'[ORIGINAL_COUNT]
+)
+
+Total Deduplicated Records = 
+SUMX(
+    'DASHBOARD-DEDUPLICATION-LOG',
+    'DASHBOARD-DEDUPLICATION-LOG'[DEDUPLICATED_COUNT]
+)
+
+Total Duplicates Removed = 
+SUMX(
+    'DASHBOARD-DEDUPLICATION-LOG',
+    'DASHBOARD-DEDUPLICATION-LOG'[DUPLICATES_REMOVED]
+)
+
+Overall Duplication Rate % = 
+DIVIDE([Total Duplicates Removed], [Total Original Records], 0)
+
+Data Quality Score = 
+1 - [Overall Duplication Rate %]
+
+Worst Duplication Table = 
+VAR MaxDuplication = 
+    MAXX(
+        'DASHBOARD-DEDUPLICATION-LOG',
+        'DASHBOARD-DEDUPLICATION-LOG'[DEDUP_PERCENTAGE]
+    )
+RETURN
+CALCULATE(
+    MAX('DASHBOARD-DEDUPLICATION-LOG'[TABLE_NAME]),
+    'DASHBOARD-DEDUPLICATION-LOG'[DEDUP_PERCENTAGE] = MaxDuplication
+)
+
+// ========================================================================================
+// MIGRATION PROGRESS MEASURES
+// ========================================================================================
+
+Migration Coverage % = 
+VAR ElentraRotations = [Non-AIM Elentra Count]
+VAR PIQRotations = [Non-AIM PIQ Count] 
+VAR MatchedRotations = [Matched Rotations]
+RETURN
+IF(
+    PIQRotations = 0,
+    IF(ElentraRotations > 0, 1, 0),
+    DIVIDE(MatchedRotations, PIQRotations, 0)
+)
+
+Migration Readiness Score = 
+VAR MatchRate = [Match Rate %]
+VAR DataQuality = [Data Quality Score] //The value for 'Data Quality Score' cannot be determined. Either the column doesn't exist, or there is no current row for this column.
+RETURN
+(MatchRate * 0.7) + (DataQuality * 0.3)
+
+System Variance = 
+VAR ElentraCount = [Non-AIM Elentra Count]
+VAR PIQCount = [Non-AIM PIQ Count]
+RETURN
+ABS(ElentraCount - PIQCount)
+
+// ========================================================================================
+// UTILITY MEASURES (for drill-through and conditional formatting)
+// ========================================================================================
+
+Has Unresolved Elentra = 
+IF([Elentra Unmatched] > 0, TRUE(), FALSE())
+
+Has Unresolved PIQ = 
+IF([PIQ Unmatched] > 0, TRUE(), FALSE())
+
+Data Quality Status = 
+SWITCH(
+    TRUE(),
+    [Data Quality Score] >= 0.95, "EXCELLENT",  //The value for 'Data Quality Score' cannot be determined. Either the column doesn't exist, or there is no current row for this column.
+    [Data Quality Score] >= 0.90, "GOOD", 
+    [Data Quality Score] >= 0.80, "FAIR",
+    "NEEDS_ATTENTION"
+)
+
+Migration Status = 
+SWITCH(
+    TRUE(),
+    [Migration Coverage %] >= 0.95, "COMPLETE",
+    [Migration Coverage %] >= 0.80, "ADVANCED",
+    [Migration Coverage %] >= 0.60, "PROGRESSING", 
+    "INITIAL"
+)
+
+Last Refresh Date = 
+MAX('DASHBOARD-SOURCE-COUNTS'[LAST_UPDATED])
