@@ -125,27 +125,27 @@ let
             MissingField.Ignore
         ),
 
-    // 8) Retrieve MDCO_USR_UID from mdmaster_sturoster
-    #"Join mdmaster_sturoster" =
+    // 8) Retrieve MDCO_USR_UID from Progress IQ student profile with SSO email source
+    #"Join student_profile" =
         Table.NestedJoin(
             #"Renamed business columns",
             {"STU_EMAIL"},
-            src_mdmaster_sturoster,
-            {"new_elentra_email"},
-            "Sturoster",
+            dim_Student_Profile_Wide,
+            {"student_email_sso"},
+            "StudentProfile",
             JoinKind.LeftOuter
         ),
 
-    #"Expanded mdmaster" =
+    #"Expanded student_profile" =
         Table.ExpandTableColumn(
-            #"Join mdmaster_sturoster",
-            "Sturoster",
-            {"new_student_uid"},
+            #"Join student_profile",
+            "StudentProfile",
+            {"student_id"},
             {"MDCO_USR_UID"}
         ),
 
     #"Filtered non-null student" =
-        Table.SelectRows(#"Expanded mdmaster", each [MDCO_USR_UID] <> null),
+        Table.SelectRows(#"Expanded student_profile", each [MDCO_USR_UID] <> null),
 
     // 9) Map ELENTRA_MDCODE -> MDCO_COURSE_UID using Elentra course UID map
     #"Join course map" =
