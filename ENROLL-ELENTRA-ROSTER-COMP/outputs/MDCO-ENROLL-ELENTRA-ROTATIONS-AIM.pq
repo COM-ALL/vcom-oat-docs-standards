@@ -46,13 +46,30 @@ let
                 {"(Custom) End Date", type date}
             }
         ),
-  #"Merged queries" = Table.NestedJoin(#"Changed type dates", {"Site(s)"}, #"src_VSITE-VDATA-ElentraCampusCatalog", {"elentra-campus-uid"}, "src_VSITE-VDATA-ElentraCampusCatalog", JoinKind.LeftOuter),
-  #"Expanded src_VSITE-VDATA-ElentraCampusCatalog" = Table.ExpandTableColumn(#"Merged queries", "src_VSITE-VDATA-ElentraCampusCatalog", {"mdco-campus-uid"}, {"mdco-campus-uid"}),
 
-    // 4) Tag academic year and system
+    // 4) Map campus early using Elentra campus catalog
+    #"Merged campus catalog" = 
+        Table.NestedJoin(
+            #"Changed type dates", 
+            {"Site(s)"}, 
+            #"src_VSITE-VDATA-ElentraCampusCatalog", 
+            {"elentra-campus-uid"}, 
+            "CampusMap", 
+            JoinKind.LeftOuter
+        ),
+    
+    #"Expanded campus catalog" = 
+        Table.ExpandTableColumn(
+            #"Merged campus catalog", 
+            "CampusMap", 
+            {"mdco-campus-uid"}, 
+            {"ELE_MDCO_CAMPUS_UID"}
+        ),
+
+    // 5) Add metadata and rename columns
     #"Added AYEAR" =
         Table.AddColumn(
-            #"Expanded src_VSITE-VDATA-ElentraCampusCatalog",
+            #"Expanded campus catalog",
             "AYEAR",
             each "2025-2026",
             type text
@@ -66,15 +83,14 @@ let
             type text
         ),
 
-    // 5) Rename business columns to MDCO-friendly names using actual column names
     #"Renamed business columns" =
         Table.RenameColumns(
             #"Added SYS",
             {
-                {"(Custom) Start Date",   "ELE_STARTDATE"},     // Rotation start date
-                {"(Custom) End Date",     "ELE_ENDDATE"},       // Rotation end date
+                {"(Custom) Start Date",   "ELE_STARTDATE"},
+                {"(Custom) End Date",     "ELE_ENDDATE"},
                 {"Course Code",           "ELENTRA_MDCODE"},
-                {"Number/Email",          "STU_EMAIL"},          // Fixed: actual column name
+                {"Number/Email",          "STU_EMAIL"},
                 {"First Name",            "FIRST_NAME"},
                 {"Last Name",             "LAST_NAME"},
                 {"Rotation Code",         "ROTATION_CODE"},
@@ -87,7 +103,7 @@ let
             MissingField.Ignore
         ),
 
-    // 6) Retrieve MDCO_USR_UID for AIM students ONLY
+    // 6) Join student profile and filter AIM students
     #"Join student_profile" =
         Table.NestedJoin(
             #"Renamed business columns",
@@ -106,11 +122,10 @@ let
             {"MDCO_USR_UID", "PROGRAMS"}
         ),
 
-    // Filter to AIM students ONLY
     #"AIM students only" =
         Table.SelectRows(#"Expanded student_profile", each [MDCO_USR_UID] <> null and [PROGRAMS] = "AIM"),
 
-    // 7) Map ELENTRA_MDCODE -> MDCO_COURSE_UID using Elentra course UID map
+    // 7) Map course UID
     #"Join course map" =
         Table.NestedJoin(
             #"AIM students only",
@@ -125,47 +140,62 @@ let
         Table.ExpandTableColumn(
             #"Join course map",
             "CourseMap",
-            {"MDCO-COURSE-UID", "MDCO-CAMPUS"},
-            {"MDCO_COURSE_UID", "MDCO_CAMPUS_UID"}
+            {"MDCO-COURSE-UID"},
+            {"MDCO_COURSE_UID"}
         ),
 
     #"Filtered mapped courses" =
         Table.SelectRows(#"Expanded course map", each [MDCO_COURSE_UID] <> null),
-  #"Invoked custom function" = Table.TransformColumnTypes(Table.AddColumn(#"Filtered mapped courses", "Invoked custom function", each fnResolveMdcoCampus([#"mdco-campus-uid"], [SITE_CODE], "no.campus.assigned")), {{"Invoked custom function", type text}}),
-  #"Renamed columns 1" = Table.RenameColumns(#"Invoked custom function", {{"Invoked custom function", "MDCO_CAMPUS_UIDv2"}}),
 
-    // 8) Handle special AIM course patterns (courses ending in 800, exclude NEXT 800 and EMED 800)
-    #"Added AIM course flag" =
+    // 8) Resolve final campus UID using hardened function
+    #"Resolved MDCO_CAMPUS_UID" =
         Table.AddColumn(
-            #"Renamed columns 1",
-            "AIM_COURSE_PATTERN",
-            each 
-                if Text.EndsWith([ELENTRA_MDCODE], "800") and 
-                   not Text.Contains([ELENTRA_MDCODE], "NEXT 800") and 
-                   not Text.Contains([ELENTRA_MDCODE], "EMED 800")
-                then "AIM_800_SERIES"
-                else if Text.Contains([ELENTRA_MDCODE], "NEXT 800") then "AIM_EXCLUDED_NEXT"
-                else if Text.Contains([ELENTRA_MDCODE], "EMED 800") then "AIM_EXCLUDED_EMED"  
-                else "AIM_OTHER",
+            #"Filtered mapped courses",
+            "MDCO_CAMPUS_UID",
+            each fnResolveMdcoCampus([ELE_MDCO_CAMPUS_UID], null, "NO.CAMPUS.ASSIGNED"),
             type text
         ),
-  #"Invoked custom function 2" = Table.TransformColumnTypes(Table.AddColumn(#"Added AIM course flag", "Invoked custom function", each fnBuildRotationUID_v1([MDCO_USR_UID], [MDCO_COURSE_UID], [ELE_STARTDATE], [ELE_ENDDATE], [MDCO_CAMPUS_UIDv2])), {{"Invoked custom function", type text}}),
 
-    // 9) Build MDCO_ENROLL_LRN_ROTATION_UID using normalized data
-    #"Built rotation UID" =
+    // 9) Build final rotation UID
+    #"Built MDCO_ENROLL_LRN_ROTATION_UID" =
         Table.AddColumn(
-            #"Invoked custom function 2",
+            #"Resolved MDCO_CAMPUS_UID",
             "MDCO_ENROLL_LRN_ROTATION_UID",
             each fnBuildRotationUID_v1(
                 [MDCO_USR_UID],
                 [MDCO_COURSE_UID],
                 [ELE_STARTDATE],
-                [Custom]
+                [ELE_ENDDATE],
+                [MDCO_CAMPUS_UID]
             ),
             type text
         ),
-  #"Removed columns" = Table.RemoveColumns(#"Built rotation UID", {"MDCO_ENROLL_LRN_ROTATION_UID"}),
-  #"Renamed columns" = Table.RenameColumns(#"Removed columns", {{"Invoked custom function", "MDCO_ENROLL_LRN_ROTATION_UID"}}),
-  #"Reordered columns" = Table.ReorderColumns(#"Renamed columns", {"MDCO_ENROLL_LRN_ROTATION_UID", "STU_EMAIL", "FIRST_NAME", "LAST_NAME", "ELENTRA_MDCODE", "ROTATION_CODE", "SCHEDULE_BLOCK", "BLOCK_LENGTH_WEEKS", "SITE_CODE", "Preceptor(s)", "ELE_STARTDATE", "ELE_ENDDATE", "HAS_CUSTOM_DATE", "STATUS", "Clinical Tags", "mdco-campus-uid", "AYEAR", "SYS", "MDCO_USR_UID", "PROGRAMS", "MDCO_COURSE_UID", "MDCO_CAMPUS_UID", "AIM_COURSE_PATTERN"})
+
+    // 10) Final column selection
+    #"Selected columns" =
+        Table.SelectColumns(
+            #"Built MDCO_ENROLL_LRN_ROTATION_UID",
+            {
+                "MDCO_ENROLL_LRN_ROTATION_UID",
+                "STU_EMAIL",
+                "FIRST_NAME",
+                "LAST_NAME",
+                "ELENTRA_MDCODE",
+                "ROTATION_CODE",
+                "SCHEDULE_BLOCK",
+                "BLOCK_LENGTH_WEEKS",
+                "SITE_CODE",
+                "ELE_STARTDATE",
+                "ELE_ENDDATE",
+                "HAS_CUSTOM_DATE",
+                "STATUS",
+                "AYEAR",
+                "SYS",
+                "MDCO_USR_UID",
+                "PROGRAMS",
+                "MDCO_COURSE_UID",
+                "MDCO_CAMPUS_UID"
+            }
+        )
 in
-    #"Reordered columns"
+    #"Selected columns"
