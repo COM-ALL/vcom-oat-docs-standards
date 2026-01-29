@@ -68,6 +68,7 @@ let
             "PIQ",
             {
                 "MDCO_ENROLL_COURSE_UID",
+                "MDCO_USR_UID",
                 "MDCO_COURSE_UID",
                 "MDCO_CAMPUS",
                 "startdate",
@@ -78,6 +79,7 @@ let
             },
             {
                 "PIQ_MDCO_ENROLL_COURSE_UID",
+                "PIQ_MDCO_USR_UID",
                 "PIQ_MDCO_COURSE_UID",
                 "PIQ_MDCO_CAMPUS",
                 "PIQ_STARTDATE",
@@ -229,6 +231,7 @@ let
                 "SYS",
                 // PIQ side (may be null if ONLY_IN_ELENTRA)
                 "PIQ_MDCO_ENROLL_COURSE_UID",
+                "PIQ_MDCO_USR_UID",
                 "PIQ_MDCO_COURSE_UID",
                 "PIQ_MDCO_CAMPUS",
                 "PIQ_STARTDATE",
@@ -252,6 +255,7 @@ let
                     #"PIQ-only shaped",
                     {
                         {"MDCO_ENROLL_COURSE_UID", "PIQ_MDCO_ENROLL_COURSE_UID"},
+                        {"MDCO_USR_UID",           "PIQ_MDCO_USR_UID"},
                         {"MDCO_COURSE_UID",        "PIQ_MDCO_COURSE_UID"},
                         {"MDCO_CAMPUS",            "PIQ_MDCO_CAMPUS"},
                         {"startdate",              "PIQ_STARTDATE"},
@@ -331,6 +335,7 @@ let
                     "SYS",                 // from PIQ
                     // PIQ side
                     "PIQ_MDCO_ENROLL_COURSE_UID",
+                    "PIQ_MDCO_USR_UID",
                     "PIQ_MDCO_COURSE_UID",
                     "PIQ_MDCO_CAMPUS",
                     "PIQ_STARTDATE",

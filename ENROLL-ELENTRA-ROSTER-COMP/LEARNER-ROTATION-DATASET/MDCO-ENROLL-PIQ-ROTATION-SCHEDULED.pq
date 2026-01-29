@@ -60,13 +60,36 @@ let
             {"MDCO-COURSE-UID", "MDCO_CAMPUSUID"}
         ),
 
-    // 7) Build MDCO_ENROLL_COURSE_UID (course-level enrollment)
+    // 7) Join student profile to exclude AIM students
+    #"Join student_profile" =
+        Table.NestedJoin(
+            #"Expanded course map",
+            {"*StudentID"},
+            #"src_VCOM-OAT-DATA-LPROFILE-v1",
+            {"student_id"},
+            "StudentProfile",
+            JoinKind.LeftOuter
+        ),
+
+    #"Expanded student_profile" =
+        Table.ExpandTableColumn(
+            #"Join student_profile",
+            "StudentProfile",
+            {"student_id", "programs"},
+            {"MDCO_USR_UID", "PROGRAMS"}
+        ),
+
+    // Filter out AIM students from main enrollment matching process
+    #"Filtered non-AIM students" =
+        Table.SelectRows(#"Expanded student_profile", each [MDCO_USR_UID] <> null and ([PROGRAMS] <> "AIM" or [PROGRAMS] = null)),
+
+    // 8) Build MDCO_ENROLL_COURSE_UID (course-level enrollment)
     #"Added MDCO_ENROLL_COURSE_UID" =
         Table.TransformColumnTypes(
             Table.AddColumn(
-                #"Expanded course map",
+                #"Filtered non-AIM students",
                 "MDCO_ENROLL_COURSE_UID",
-                each fnBuildCRSRosterUID_v1([#"*StudentID"], [#"MDCO-COURSE-UID"])
+                each fnBuildCRSRosterUID_v1([MDCO_USR_UID], [#"MDCO-COURSE-UID"])
             ),
             {{"MDCO_ENROLL_COURSE_UID", type text}}
         ),
@@ -231,7 +254,7 @@ let
                 #"Resolved MDCO_CAMPUS",
                 "MDCO_ENROLL_LRN_ROTATION_UID",
                 each fnBuildRotationUID_v1(
-                        [#"*StudentID"],     // PIQ student ID
+                        [MDCO_USR_UID],       // Standardized student UID
                         [#"MDCO-COURSE-UID"], // MDCO course code
                         [startdate],          // PIQ startdate (never overwritten)
                         [enddate],            // PIQ enddate (never overwritten)
@@ -252,6 +275,7 @@ let
             {
                 "MDCO_ENROLL_LRN_ROTATION_UID",
                 "MDCO_ENROLL_COURSE_UID",
+                "MDCO_USR_UID",
                 "MDCO-COURSE-UID",
                 "MDCO_CAMPUS",
                 "*StudentID",
@@ -259,6 +283,7 @@ let
                 "enddate",
                 "*CourseID",
                 "Location(Site)",
+                "PROGRAMS",
                 "DATE-OF-RECORD",
                 "RECORD_ACTIVE",
                 "SYS"
