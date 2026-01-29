@@ -1,3 +1,4 @@
+// MDCO-ENROLL-ELENTRA-ROTATIONS-AIM
 let
     // 1) Load Elentra rotations CSV from SharePoint
     Source =
@@ -46,10 +47,23 @@ let
             }
         ),
 
+    // 4) Drop unused descriptive columns
+    #"Removed extra columns" =
+        Table.RemoveColumns(
+            #"Changed type dates",
+            {
+                "First Name",
+                "Last Name",
+                "Block Length (Weeks)",
+                "Preceptor(s)",
+                "Clinical Tags"
+            }
+        ),
+
     // 5) Normalize and classify enrollment Status -> ELE_ENROLL_STATUS
     #"Trimmed Status" =
         Table.TransformColumns(
-            #"Changed type dates",
+            #"Removed extra columns",
             {{"Status", each Text.Trim(_), type nullable text}}
         ),
 
@@ -117,7 +131,7 @@ let
         ),
 
     // 8) Retrieve MDCO_USR_UID from LPROFILE v1 (Progress IQ student profile with SSO email)
-    // Exclude AIM students - they will be processed separately due to unique scheduling patterns
+    // Include ONLY AIM students - they are processed separately due to unique scheduling patterns
     #"Join student_profile" =
         Table.NestedJoin(
             #"Renamed business columns",
@@ -132,19 +146,18 @@ let
         Table.ExpandTableColumn(
             #"Join student_profile",
             "StudentProfile",
-            {"student_id", "programs", "student_email_sso"},     // Added programs + email
-            {"MDCO_USR_UID", "PROGRAMS", "STUDENT_EMAIL_SSO"}    // Consistent naming
+            {"student_id", "pipeline"},
+            {"MDCO_USR_UID", "STUDENT_PIPELINE"}
         ),
 
-    // Filter out AIM students from main enrollment matching process
-    #"Filtered non-AIM students" =
-        Table.SelectRows(#"Expanded student_profile", 
-            each [MDCO_USR_UID] <> null and ([PROGRAMS] <> "AIM" or [PROGRAMS] = null)),
+    // Filter FOR AIM students only (opposite of ACTIVE query)
+    #"Filtered AIM students" =
+        Table.SelectRows(#"Expanded student_profile", each [MDCO_USR_UID] <> null and [STUDENT_PIPELINE] = "AIM"),
 
     // 9) Map ELENTRA_MDCODE -> MDCO_COURSE_UID using Elentra course UID map
     #"Join course map" =
         Table.NestedJoin(
-            #"Filtered non-AIM students",
+            #"Filtered AIM students",
             {"ELENTRA_MDCODE"},
             #"src_VCOM-OAT-DATA-ELENTRA-CRSUID_map",
             {"ELENTRA-MDCODE"},
@@ -197,20 +210,20 @@ let
             type text
         ),
 
-   // 13) Build extended learner rotation UID for Elentra
-#"Added MDCO_ENROLL_LRN_ROTATION_UID" =
-    Table.AddColumn(
-        #"Added MDCO_ENROLL_COURSE_UID",   // <-- fixed
-        "MDCO_ENROLL_LRN_ROTATION_UID",
-        each fnBuildRotationUID_v1(
-                [MDCO_USR_UID],
-                [MDCO_COURSE_UID],
-                [ELE_STARTDATE],
-                [ELE_ENDDATE],
-                [MDCO_CAMPUS_UID]
-             ),
-        type text
-    ),
+    // 13) Build extended learner rotation UID for Elentra AIM students
+    #"Added MDCO_ENROLL_LRN_ROTATION_UID" =
+        Table.AddColumn(
+            #"Added MDCO_ENROLL_COURSE_UID",
+            "MDCO_ENROLL_LRN_ROTATION_UID",
+            each fnBuildRotationUID_v1(
+                    [MDCO_USR_UID],
+                    [MDCO_COURSE_UID],
+                    [ELE_STARTDATE],
+                    [ELE_ENDDATE],
+                    [MDCO_CAMPUS_UID]
+                 ),
+            type text
+        ),
 
     // 14) Final utility-level selection (using actual available columns)
     #"Selected columns" =
