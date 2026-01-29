@@ -13,6 +13,12 @@ This repository defines data standardization patterns for Virginia College of Os
 - **Systems**: `TBANNER`, `VELENTRA`, `VPIQ`, `VFACPORT`
 - **Environments**: `DEV`, `TEST`, `UAT`, `PROD`, `SBX`
 
+### Data Integration Architecture
+- **Source of Truth**: Progress IQ serves as the authoritative source for student profile metadata
+- **Multi-System Sync**: Master schedule compilation from multiple sources feeds back to ProgressIQ, Elentra, and Banner
+- **Population Tracking**: Special populations (e.g., 'AIM' tagged students) are processed outside normal flow with careful tracking to prevent data loss
+- **Change Management**: Dedicated tables for adds/drops ensure audit trail for all enrollment changes
+
 ### UID Generation Pattern
 All UID generator functions follow this structure:
 - Input normalization using `fnNormalizeText()` or `fnNormalizeStudentId()`

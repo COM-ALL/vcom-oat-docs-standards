@@ -1,0 +1,6 @@
+let
+  Source = CommonDataService.Database("org4c96263d.crm.dynamics.com", [CreateNavigationProperties = null]),
+  #"Navigation 1" = Source{[Schema = "dbo", Item = "new_mdmaster_sturoster"]}[Data],
+  #"Removed columns" = Table.RemoveColumns(#"Navigation 1", {"new_mdmaster_sturosterid", "createdon", "createdby", "modifiedon", "modifiedby", "createdonbehalfby", "modifiedonbehalfby", "createdbyname", "createdbyyominame", "createdonbehalfbyname", "createdonbehalfbyyominame", "modifiedbyname", "modifiedbyyominame", "modifiedonbehalfbyname", "modifiedonbehalfbyyominame", "ownerid", "owneridname", "owneridyominame", "owningbusinessunit", "owninguser", "owningteam", "owningbusinessunitname", "statecode", "statecodename", "statuscode", "statuscodename", "importsequencenumber", "overriddencreatedon", "timezoneruleversionnumber", "utcconversiontimezonecode", "asyncoperation", "businessunit", "processsession", "systemuser(createdby)", "systemuser(createdonbehalfby)", "systemuser(modifiedby)", "systemuser(modifiedonbehalfby)", "systemuser(owninguser)", "team"})
+in
+  #"Removed columns"
