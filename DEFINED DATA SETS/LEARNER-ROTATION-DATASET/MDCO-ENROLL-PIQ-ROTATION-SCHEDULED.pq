@@ -46,16 +46,16 @@ let
         Table.NestedJoin(
             #"Trimmed *CourseID",
             {"*CourseID"},
-            #"src_VCOM-MDCO-DATA-PIQ-CRSUID_map",
+            #"VCOM-OAT-DATA-PIQ-CRSUID_map",
             {"PIQ-CATUID"},
-            "VCOM-MDCO-DATA-PIQ-CRSUID_map",
+            "VCOM-OAT-DATA-PIQ-CRSUID_map",
             JoinKind.LeftOuter
         ),
 
     #"Expanded course map" =
         Table.ExpandTableColumn(
             #"Merged course map",
-            "VCOM-MDCO-DATA-PIQ-CRSUID_map",
+            "VCOM-OAT-DATA-PIQ-CRSUID_map",
             {"MDCO-COURSE-UID", "MDCO_CAMPUSUID"},
             {"MDCO-COURSE-UID", "MDCO_CAMPUSUID"}
         ),
