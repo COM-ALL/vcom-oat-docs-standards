@@ -1,3 +1,22 @@
+// src_elentra_course_roster
+// 
+// PURPOSE: Course-level enrollment tracking for Elentra students
+// BUSINESS MODEL: Static campus assignments (home campus for M2, ABRY/AHEM for M1) 
+// KEY DIFFERENCE: Uses MDCO_ENROLL_COURSE_UID (shorter) vs rotation UID (full event-specific)
+//
+// INCLUSION RATIONALE: 
+// - Included in LEARNER-ROTATION-DATASET as source/dependency for other queries
+// - Used by MDCO-ENROLL-PIQ-ROTATION-SCHEDULED.pq for campus resolution joins
+// - Represents different business model from rotation-level enrollment tracking
+//
+// DATA STRATEGY:
+// - Maintained as source query (not published to datalake)
+// - Will be moved to dedicated course roster dataset in future architecture
+// - Kept here temporarily to preserve existing dependencies
+//
+// DEPENDENCIES: This query is referenced by other queries in this dataset
+// DO NOT REMOVE without updating dependent queries first
+//
 let
     // 1) Combine M1/M2 and M3/M4 Elentra enrollment extracts
     Source =
