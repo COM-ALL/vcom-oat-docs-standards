@@ -288,6 +288,7 @@ let
                 "RECORD_ACTIVE",
                 "SYS"
             }
-        )
+        ),
+  #"Marked key columns" = Table.AddKey(#"Selected columns", {"MDCO_ENROLL_LRN_ROTATION_UID"}, false)
 in
-    #"Selected columns"
+    #"Marked key columns"

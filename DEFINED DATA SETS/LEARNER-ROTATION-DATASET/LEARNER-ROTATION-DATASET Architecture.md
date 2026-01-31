@@ -1,5 +1,14 @@
 # LEARNER-ROTATION-DATASET Architecture
 
+This dataset is compiled from source csv documents via the dataflow:
+
+````
+
+MDCO ENROLL ROTATION COMPOSITE
+
+````
+and populates the tables listed below.
+
 This represents a comprehensive audit and migration infrastructure with the following components:
 
 ## Core Data Tables (4 tables)
@@ -16,9 +25,11 @@ This represents a comprehensive audit and migration infrastructure with the foll
 
 ## Key* Technical Features Delivered
 
+* REQUIREMENT: MDCO_ENROLL_LRN_ROTATION_UID is the only key column allowed in this dataset and must be calculated using the same functions for all tables. 
 * Consistent UID Generation: fnBuildRotationUID_v1 with 5-parameter validation across all systems
 * AIM Student Segregation: Separate processing pipeline for special populations
 * Cross-System Student Mapping: LPROFILE integration for MDCO_USR_UID standardization
 * Robust Campus Resolution: fnResolveMdcoCampus with enhanced null handling
 * Match Analysis: Three-point matching (student + course + startdate) with variance tracking
 * Audit Trail: Complete metadata tracking (DATE_OF_RECORD, RECORD_ACTIVE, SYS)
+* Once the pipeline and resulting tables are assigned a major version number the core code may not be altered without going through full testing in a development environment. Any future alterations or code work should only be completed in a clearly identifed branch in GitHub.

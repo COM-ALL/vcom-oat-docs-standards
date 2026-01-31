@@ -132,7 +132,8 @@ let
                 {"RecordActive",           "RECORD_ACTIVE"},
                 {"SYS",                    "SYS"}
             }
-        )
+        ),
+  #"Marked key columns" = Table.AddKey(#"Renamed MDCO columns", {"MDCO_ENROLL_COURSE_UID"}, false)
 
 in
-    #"Renamed MDCO columns"
+    #"Marked key columns"

@@ -101,10 +101,81 @@ let
         Table.SelectRows(#"Expanded student_profile", 
             each [MDCO_USR_UID] <> null and [PROGRAMS] = "AIM"),
 
-    // 8) Add metadata for tracking
+    // 8) Add course UID mapping (PIQ course -> MDCO-COURSE-UID, MDCO_CAMPUSUID)
+    #"Merged course map" =
+        Table.NestedJoin(
+            #"AIM students only",
+            {"PIQ_COURSEID"},
+            #"VCOM-OAT-DATA-PIQ-CRSUID_map",
+            {"PIQ-CATUID"},
+            "VCOM-OAT-DATA-PIQ-CRSUID_map",
+            JoinKind.LeftOuter
+        ),
+
+    #"Expanded course map" =
+        Table.ExpandTableColumn(
+            #"Merged course map",
+            "VCOM-OAT-DATA-PIQ-CRSUID_map",
+            {"MDCO-COURSE-UID", "MDCO_CAMPUSUID"},
+            {"MDCO-COURSE-UID", "piq_CAMPUSUID"}
+        ),
+
+    // 9) Build MDCO_ENROLL_COURSE_UID (course-level enrollment)
+    #"Added MDCO_ENROLL_COURSE_UID" =
+        Table.AddColumn(
+            #"Expanded course map",
+            "MDCO_ENROLL_COURSE_UID",
+            each fnBuildCRSRosterUID_v1([MDCO_USR_UID], [#"MDCO-COURSE-UID"]),
+            type text
+        ),
+
+    // 10) Campus resolution using Elentra campus catalog
+    #"Merged campus catalog" =
+        Table.NestedJoin(
+            #"Added MDCO_ENROLL_COURSE_UID",
+            {"SITE_CODE"},
+            #"src_VSITE-VDATA-ElentraCampusCatalog",
+            {"elentra-campus-uid"},
+            "CampusMap",
+            JoinKind.LeftOuter
+        ),
+
+    #"Expanded campus catalog" =
+        Table.ExpandTableColumn(
+            #"Merged campus catalog",
+            "CampusMap",
+            {"mdco-campus-uid"},
+            {"elentra_mdco_campus"}
+        ),
+
+    // 11) Resolve final MDCO_CAMPUS using fnResolveMdcoCampus
+    #"Resolved MDCO_CAMPUS" =
+        Table.AddColumn(
+            #"Expanded campus catalog",
+            "MDCO_CAMPUS",
+            each fnResolveMdcoCampus([elentra_mdco_campus], [piq_CAMPUSUID]),
+            type text
+        ),
+
+    // 12) Build MDCO_ENROLL_LRN_ROTATION_UID (THE KEY FIELD)
+    #"Added MDCO_ENROLL_LRN_ROTATION_UID" =
+        Table.AddColumn(
+            #"Resolved MDCO_CAMPUS",
+            "MDCO_ENROLL_LRN_ROTATION_UID",
+            each fnBuildRotationUID_v1(
+                    [MDCO_USR_UID],       // Student UID
+                    [#"MDCO-COURSE-UID"], // Course UID
+                    [startdate],          // PIQ start date
+                    [enddate],            // PIQ end date
+                    [MDCO_CAMPUS]         // Resolved campus
+                 ),
+            type text
+        ),
+
+    // 13) Add metadata for tracking
     #"Added DATE_OF_RECORD" =
         Table.AddColumn(
-            #"AIM students only",
+            #"Added MDCO_ENROLL_LRN_ROTATION_UID",
             "DATE_OF_RECORD",
             each fnDATE_ActiveAsOf(),
             type date
@@ -126,12 +197,16 @@ let
             type text
         ),
 
-    // 9) Final selection for AIM counting and tracking
+    // 14) Final selection with all MDCO fields included
     #"Selected columns" =
         Table.SelectColumns(
             #"Added SYS",
             {
+                "MDCO_ENROLL_LRN_ROTATION_UID",  // THE KEY FIELD
+                "MDCO_ENROLL_COURSE_UID",
                 "MDCO_USR_UID",
+                "MDCO-COURSE-UID",
+                "MDCO_CAMPUS",
                 "PIQ_STUDENTID", 
                 "PIQ_COURSEID",
                 "startdate",
@@ -152,6 +227,7 @@ let
                 "Block",
                 "Collection"
             }
-        )
+        ),
+  #"Marked key columns" = Table.AddKey(#"Selected columns", {"MDCO_ENROLL_LRN_ROTATION_UID"}, false)
 in
-    #"Selected columns"
+    #"Marked key columns"
