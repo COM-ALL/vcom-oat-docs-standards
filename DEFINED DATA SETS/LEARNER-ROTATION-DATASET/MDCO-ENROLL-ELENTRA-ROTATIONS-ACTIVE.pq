@@ -188,7 +188,7 @@ let
             type text
         ),
 
-    // 12) Build MDCO_ENROLL_COURSE_UID (course enrollment key)
+    // 12) Build MDCO_ENROLL_COURSE_UID (course enrollment)
     #"Added MDCO_ENROLL_COURSE_UID" =
         Table.AddColumn(
             #"Resolved MDCO_CAMPUS_UID",
@@ -238,6 +238,7 @@ let
                 "SITE_CODE",
                 "HAS_CUSTOM_DATE"
             }
-        )
+        ),
+  #"Marked key columns" = Table.AddKey(#"Selected columns", {"MDCO_ENROLL_LRN_ROTATION_UID"}, false)
 in
-    #"Selected columns"
+    #"Marked key columns"
