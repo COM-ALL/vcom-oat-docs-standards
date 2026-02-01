@@ -10,10 +10,11 @@ let
     
     // Current academic year terms to process
     // Adjust these based on current academic calendar
+    // MED SCHOOL ACADEMIC YEAR 2025-2026 contains enrollment from the following Banner terms, we will deal with the split in the spring term later in the scipt
     CurrentTerms = {
-        "202515",  // Fall 2025 (July-Dec 2025)
-        "202615",  // Spring 2026 (Jan-June 2026) 
-        "202615"   // Fall 2026 (July-Dec 2026) - future planning
+        "202515",  // Banner Term Spring 2025 (Jan-June 2025)
+        "202535",  // Banner Term Fall 2025 (July-Dec 2025)
+        "202615"   // Banner Term Spring 2026 (Jan-June 2026)
     },
 
     // ================================
