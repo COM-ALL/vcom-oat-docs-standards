@@ -1,4 +1,4 @@
-// MDCO-ENROLL-ELENTRA-COURSE-ROSTER-ACTIVE
+// MDCO-ENROLL-ELENTRA-COURSE-ROSTER
 //
 // PURPOSE: Elentra course enrollment processing for non-AIM students  
 // SOURCE: Elentra M1/M2 and M3/M4 enrollment extracts
@@ -10,12 +10,38 @@
 //
 let
     // === DATA SOURCE ===
-    // Combine M1/M2 and M3/M4 Elentra enrollment extracts
-    Source =
-        Table.Combine({
-            #"src_ELENTRA-25AY26-M3M4-ENROLL",
-            #"src_ELENTRA-25AY26-M1M2-ENROLL"
-        }),
+    // Import Elentra enrollment data directly from SharePoint
+    SharePointSource = SharePoint.Files("https://tamucs.sharepoint.com/teams/Team-vcom-oat-vdata-dev", [ApiVersion = 15]),
+    #"Filtered to inbound folder" = Table.SelectRows(SharePointSource, each ([Folder Path] = "https://tamucs.sharepoint.com/teams/Team-vcom-oat-vdata-dev/datafiles/inbound/")),
+    
+    // Load M1/M2 enrollment data
+    M1M2Source = #"Filtered to inbound folder"{[Name = "ELENTRA-25AY26-M1M2-ENROLL.csv", #"Folder Path" = "https://tamucs.sharepoint.com/teams/Team-vcom-oat-vdata-dev/datafiles/inbound/"]}[Content],
+    M1M2Data = 
+        let
+            ImportedCSV = Csv.Document(M1M2Source, [Delimiter = ",", Columns = 9, QuoteStyle = QuoteStyle.None]),
+            RemovedTopRows = Table.Skip(ImportedCSV, 2),
+            PromotedHeaders = Table.PromoteHeaders(RemovedTopRows, [PromoteAllScalars = true]),
+            FilteredRows = Table.SelectRows(PromotedHeaders, each ([#"Curriculum Period"] = "202615")),
+            TaggedData = Table.AddColumn(FilteredRows, "DATA_COHORT", each "M1M2", type text)
+        in
+            TaggedData,
+    
+    // Load M3/M4 enrollment data  
+    M3M4Source = #"Filtered to inbound folder"{[Name = "ELENTRA-25AY26-M3M4-ENROLL.csv", #"Folder Path" = "https://tamucs.sharepoint.com/teams/Team-vcom-oat-vdata-dev/datafiles/inbound/"]}[Content],
+    M3M4Data = 
+        let
+            ImportedCSV = Csv.Document(M3M4Source, [Delimiter = ",", Columns = 9, QuoteStyle = QuoteStyle.None]),
+            RemovedTopRows = Table.Skip(ImportedCSV, 2),
+            PromotedHeaders = Table.PromoteHeaders(RemovedTopRows, [PromoteAllScalars = true]),
+            FilteredRows = Table.SelectRows(PromotedHeaders, each ([#"Curriculum Period"] = "Curriculum Period" or [#"Curriculum Period"] = "MED-CLERKSHIP AY 2025/2026")),
+            SortedRows = Table.Sort(FilteredRows, {{"Curriculum Period", Order.Ascending}}),
+            RemovedHeaders = Table.Skip(SortedRows, 141),
+            TaggedData = Table.AddColumn(RemovedHeaders, "DATA_COHORT", each "M3M4", type text)
+        in
+            TaggedData,
+    
+    // Combine M1/M2 and M3/M4 enrollment extracts
+    Source = Table.Combine({M3M4Data, M1M2Data}),
 
     // === FIELD STANDARDIZATION ===
     // Tag academic year for downstream reconciliation
@@ -64,7 +90,7 @@ let
 
     // Clean up split columns
     #"Removed split columns" =
-        Table.RemoveColumns(#"Rebuilt Course Code", {"Course Code.1", "Course Code.2", "Course Code"}),
+        Table.RemoveColumns(#"Rebuilt Course Code", {"Course Code.1", "Course Code.2"}),
 
     // === STUDENT PROFILE LOOKUP ===
     // Map Elentra student ID to MDCO_USR_UID using student profile
@@ -110,12 +136,15 @@ let
             {"MDCO-COURSE-UID"},
             {"MDCO_COURSE_UID"}
         ),
+  #"Duplicated column" = Table.DuplicateColumn(#"Expanded course map", "Learner Name", "Learner Name - Copy"),
+  #"Split column by delimiter" = Table.SplitColumn(#"Duplicated column", "Learner Name - Copy", Splitter.SplitTextByEachDelimiter({" "}, QuoteStyle.Csv, true), {"Learner Name - Copy.1", "Learner Name - Copy.2"}),
+  #"Renamed columns" = Table.RenameColumns(#"Split column by delimiter", {{"Learner Name - Copy.1", "First Name"}, {"Learner Name - Copy.2", "Last Name"}}),
 
     // === CAMPUS RESOLUTION ===
     // Apply course roster campus logic (static assignments)
     #"Resolved MDCO_CAMPUS" =
         Table.AddColumn(
-            #"Expanded course map",
+            #"Renamed columns",
             "MDCO_CAMPUS_UID",
             each 
                 // Campus logic for course enrollments:
@@ -191,7 +220,7 @@ let
                 "STUDENT_EMAIL_SSO",          // SSO email (for evaluation lookup)
                 "First Name",                 // First name (for evaluation display)
                 "Last Name",                  // Last name (for evaluation display)
-                "Course Title",               // Course title (for evaluation display)
+
                 "ACADEMIC_YEAR",              // Academic year context
                 "PROGRAMS",                   // Student program (AIM filtering)
                 "DATE_OF_RECORD",             // Snapshot date
@@ -201,7 +230,10 @@ let
         ),
 
     // Mark primary key for database creation
-    #"Marked key columns" = Table.AddKey(#"Selected columns", {"MDCO_ENROLL_COURSE_UID"}, false)
+    #"Marked key columns" = Table.AddKey(#"Selected columns", {"MDCO_ENROLL_COURSE_UID"}, false),
+  #"Removed columns" = Table.RemoveColumns(#"Marked key columns", {"MDCO_USR_UID", "MDCO_COURSE_UID"}),
+  #"Reordered columns" = Table.ReorderColumns(#"Removed columns", {"MDCO_ENROLL_COURSE_UID", "DATE_OF_RECORD", "RECORD_ACTIVE", "SYS", "ACADEMIC_YEAR", "MDCO_CAMPUS_UID", "NAME_HASH", "ELENTRA_STUDENT_ID", "ELENTRA_COURSE_CODE", "STUDENT_EMAIL", "STUDENT_EMAIL_SSO", "First Name", "Last Name", "PROGRAMS"}),
+  #"Removed other columns" = Table.SelectColumns(#"Reordered columns", {"MDCO_ENROLL_COURSE_UID", "DATE_OF_RECORD", "RECORD_ACTIVE", "SYS", "ACADEMIC_YEAR", "MDCO_CAMPUS_UID"})
 
 in
-    #"Marked key columns"
+    #"Removed other columns"
