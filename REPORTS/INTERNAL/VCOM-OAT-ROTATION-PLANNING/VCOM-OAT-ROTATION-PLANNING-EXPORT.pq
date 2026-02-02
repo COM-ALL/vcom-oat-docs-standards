@@ -32,18 +32,21 @@ let
         let
             courseUID = [MDCO_COURSE_UID],
             afterMDCO = Text.AfterDelimiter(courseUID, "MDCO-"),
-            firstDigitPos = List.PositionOf(Text.ToList(afterMDCO), each Text.Contains("0123456789", _), 0)
+            beforeDot = Text.BeforeDelimiter(afterMDCO, ".", {0, RelativePosition.FromStart}),
+            firstDigitPos = List.PositionOfAny(Text.ToList(beforeDot), {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"})
         in
-            if firstDigitPos >= 0 then Text.Start(afterMDCO, firstDigitPos) else null
+            if firstDigitPos >= 0 then Text.Start(beforeDot, firstDigitPos) else beforeDot
     ),
     
     addCourseID = Table.AddColumn(addParsedCourseInfo, "COURSEID", each 
         let
             courseUID = [MDCO_COURSE_UID],
             afterMDCO = Text.AfterDelimiter(courseUID, "MDCO-"),
-            beforeDot = Text.BeforeDelimiter(afterMDCO, ".", {0, RelativePosition.FromEnd})
+            beforeDot = Text.BeforeDelimiter(afterMDCO, ".", {0, RelativePosition.FromStart}),
+            dept = [DEPT],
+            courseNumber = Text.AfterDelimiter(beforeDot, dept, RelativePosition.FromStart)
         in
-            beforeDot
+            if dept <> null and courseNumber <> null then dept & " " & courseNumber else beforeDot
     ),
     
     // === CAMPUS & SITE RESOLUTION ===
@@ -156,7 +159,13 @@ let
         {"End Date", Order.Ascending},
         {"DEPT", Order.Ascending},
         {"COURSEID", Order.Ascending}
-    })
+    }),
+  #"Split column by position" = Table.SplitColumn(Table.TransformColumnTypes(sortedResults, {{"COURSEID", type text}}), "COURSEID", Splitter.SplitTextByPositions({0, 4}, false), {"COURSEID.1", "COURSEID.2"}),
+  #"Added custom" = Table.TransformColumnTypes(Table.AddColumn(#"Split column by position", "COURSE ID", each [COURSEID.1] & " " & [COURSEID.2]), {{"COURSE ID", type text}}),
+  #"Removed columns" = Table.RemoveColumns(#"Added custom", {"DEPT"}),
+  #"Renamed columns" = Table.RenameColumns(#"Removed columns", {{"COURSEID.1", "DEPT"}}),
+  #"Removed columns 1" = Table.RemoveColumns(#"Renamed columns", {"COURSEID.2"}),
+  #"Reordered columns" = Table.ReorderColumns(#"Removed columns 1", {"DEPT", "COURSE ID", "Course Name", "Campus", "Site", "Week Count", "Enrollment Count", "Start Date", "End Date"})
     
 in
-    sortedResults
+    #"Reordered columns"
