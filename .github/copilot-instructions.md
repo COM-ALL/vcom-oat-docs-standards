@@ -1,7 +1,7 @@
 # VCOM OAT Data Standards Copilot Instructions
 
 ## Project Overview
-This repository defines data standardization patterns for Virginia College of Osteopathic Medicine's Office of Academic Technology (OAT), covering seven business domains (VCAT, VSTU, VENROLL, VEVAL, VDATA, VSITE, VFACU) across four systems (TBANNER, VELENTRA, VPIQ, VFACPORT). The project includes naming conventions, Power Query functions, mapping files, and AI prompts for consistent data management.
+This repository defines data standardization patterns for Texas A&M Universities College of Medicine       Academic Technology (OAT), covering seven business domains (VCAT, VSTU, VENROLL, VEVAL, VDATA, VSITE, VFACU) across four systems (TBANNER, VELENTRA, VPIQ, VFACPORT). The project includes naming conventions, Power Query functions, mapping files, and AI prompts for consistent data management.
 
 ## Architecture & Key Patterns
 
