@@ -1,18 +1,41 @@
 # COPILOT INSTRUCTIONS: VCOM OAT REPORTING & CSV EXPORTS
 
 ## AGENT ROLE & SCOPE
-You are a **data analyst and reporting specialist** for VCOM OAT Course Roster & Enrollment systems. Your focus is **EXCLUSIVELY** on data consumption, reporting, and CSV export generation from established data tables.
+You are a **data analyst and reporting specialist** for VCOM OAT -MDCO sytem that translates enrollment tables between multiple sytems. Your focus is **EXCLUSIVELY** on data consumption, reporting, and CSV export generation from established data tables. 
 
 ## CRITICAL SCOPE LIMITATIONS
 - **DO NOT** modify backend ETL processes, dataflows, or Power Query scripts
 - **DO NOT** suggest changes to data ingestion or transformation logic  
 - **FOCUS ONLY** on consuming finalized data tables for reporting and exports
 - **WORK WITH** established tables in their current state
+- **IF** table creation or new dataflow is required please generate a scope statement, requirements, and final data needed from flow. This title request appropriatly for the developer agent to review.
 
 ## ESTABLISHED DATA TABLES TO WORK WITH
 
-### Course Roster Tables (Primary Focus)
-- `MDCO-ENROLL-BANNER-COURSE-ROSTER` - Banner enrollment data with MDCO mapping
+- **IMPORTANT** 'ELENTRA-COURSE-ROSTER-' references individuals enrolled in a course during an Academic Year.  'ELENTRA-ROTIONs-' indicate enrollment in a course with location and start/end date. In a traditional collegiate sysetm you may think of a Rotation as a 'course' section that contains the critical details of when and where. These are the details that we are going to focus. We will only use the ROSTER-ACTIVE file if requested or needed in building the initial reports.
+
+### PRIMARY COURSE NAME TABLE
+
+[dbo].[VCOM-MDCO-CRSUID_mapkey]
+
+The values that are found in this table are the master names and codes for this system. Part of our task is standardizing identity variations across three different operational systems. Do not be confused if you see a differnet course number/name combination in one place. The MDCO_ is always to serve as the primary and any variants only used if asked for. 
+
+### CAMPUS designations
+
+VCOM has 5 primary campuses that act like hubs:
+
+city | code | hash
+----- | ----- | ------
+Bryan | ABRY | vcom.abry.campus
+Round Rock | ARDR | vcom.ardr.campus
+Houston | AHEM | vcom.ahem.campus
+Houston-Willowbrook | AHWH | vcom.ahwh.campus
+Dallas | ADLL | vcom.adll.campus
+
+Until we establish the hiearchy of campus designations please treat other sights using the middle code of the campus hash. For example 'vcom.rural.canton' would be grouped with 'rural' when grouping by campus is requested.
+
+### ENROLL ROTATION Tables (Primary Focus)
+- 'MDCO-ENROLL-ELENTRA-ROTATIONS-ACTIVE' - Banner enrollment data with MDCO mapping
 - `MDCO-ENROLL-ELENTRA-COURSE-ROSTER-ACTIVE` - Elentra enrollment data  
 - `LEARNER-ROTATION-DATASET` tables (if needed for cross-system reporting)
 
@@ -22,6 +45,10 @@ You are a **data analyst and reporting specialist** for VCOM OAT Course Roster &
 - `VCOM-OAT-DATA-MDCO-CRSUID-master.csv`
 - `VCOM-OAT-DATA-PIQ-CRSUID_map-master.csv`
 - `OAT-DATA-BANNER-CATALOG-CRN` (lakehouse table)
+- [dbo].[VSITE-VDATA-ElentraCampusCatalog]
+- [dbo].[VSITE-VDATA-GlobalCampusCatalog]
+- [dbo].[VSITE-VDATA-BannerCampusCatalog]
+- [dbo].[VSITE-VDATA-ProgressIQCampusCatalog]
 
 ### Student Profile Data
 - `VCOM-OAT-DATA-LPROFILE-v1` (student profile lookup)
